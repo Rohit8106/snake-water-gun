@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake, Water, Gun</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Kalam:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board:#1d3b2a;
+    --board-dark:#173025;
+    --chalk:#f3f0e6;
+    --chalk-dim:#c9c6ba;
+    --yellow:#e8c547;
+    --pink:#e8748a;
+    --blue:#6fa8dc;
+    --frame:#5a4632;
+    --frame-dark:#3e3021;
+  }
+
+  *{box-sizing:border-box;}
+
+  body{
+    margin:0;
+    min-height:100vh;
+    background:
+      radial-gradient(circle at 50% 0%, #24462f 0%, var(--board) 55%, var(--board-dark) 100%);
+    font-family:'Nunito', sans-serif;
+    color:var(--chalk);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:24px;
+  }
+
+  /* chalk dust / noise texture */
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    pointer-events:none;
+    opacity:0.05;
+    background-image:
+      radial-gradient(circle, #fff 1px, transparent 1px);
+    background-size:3px 3px;
+    mix-blend-mode:overlay;
+  }
+
+  .frame{
+    width:100%;
+    max-width:640px;
+    background:linear-gradient(180deg, var(--frame) 0%, var(--frame-dark) 100%);
+    border-radius:18px;
+    padding:14px;
+    box-shadow:0 25px 60px rgba(0,0,0,0.45), inset 0 0 0 3px rgba(0,0,0,0.25);
+  }
+
+  .board{
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.08)),
+      var(--board);
+    border-radius:10px;
+    padding:28px 24px 32px;
+    position:relative;
+    overflow:hidden;
+  }
+
+  .board::after{
+    /* worn chalkboard smudges */
+    content:"";
+    position:absolute;
+    inset:0;
+    background:
+      radial-gradient(ellipse 300px 120px at 15% 10%, rgba(255,255,255,0.05), transparent 70%),
+      radial-gradient(ellipse 260px 140px at 85% 90%, rgba(255,255,255,0.04), transparent 70%);
+    pointer-events:none;
+  }
+
+  h1{
+    font-family:'Caveat', cursive;
+    font-size:clamp(2.6rem, 8vw, 3.6rem);
+    text-align:center;
+    margin:0 0 2px;
+    font-weight:700;
+    letter-spacing:1px;
+    color:var(--chalk);
+    text-shadow:0 0 1px rgba(255,255,255,0.3);
+  }
+
+  .subtitle{
+    text-align:center;
+    font-family:'Kalam', cursive;
+    color:var(--chalk-dim);
+    font-size:0.95rem;
+    margin-bottom:22px;
+    letter-spacing:0.5px;
+  }
+
+  .scoreboard{
+    display:flex;
+    justify-content:center;
+    gap:28px;
+    margin-bottom:26px;
+    font-family:'Kalam', cursive;
+  }
+
+  .score-item{
+    text-align:center;
+  }
+
+  .score-label{
+    font-size:0.75rem;
+    text-transform:uppercase;
+    letter-spacing:1.5px;
+    color:var(--chalk-dim);
+    display:block;
+    margin-bottom:4px;
+  }
+
+  .score-value{
+    font-size:1.9rem;
+    font-weight:700;
+  }
+
+  .score-value.you{color:var(--yellow);}
+  .score-value.cpu{color:var(--pink);}
+  .score-value.draw{color:var(--blue);}
+
+  .divider{
+    width:1px;
+    background:rgba(255,255,255,0.15);
+  }
+
+  .arena{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+    margin-bottom:22px;
+    min-height:120px;
+  }
+
+  .fighter{
+    width:96px;
+    height:96px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+  }
+
+  .fighter svg{
+    width:100%;
+    height:100%;
+    filter:drop-shadow(0 0 2px rgba(255,255,255,0.15));
+    transition:transform 0.25s ease, opacity 0.25s ease;
+  }
+
+  .fighter.empty svg{opacity:0.15;}
+
+  .vs{
+    font-family:'Caveat', cursive;
+    font-size:1.8rem;
+    color:var(--chalk-dim);
+  }
+
+  .fighter.winner svg{
+    transform:scale(1.15);
+  }
+
+  .fighter.loser svg{
+    opacity:0.35;
+  }
+
+  .fighter.loser::after{
+    content:"";
+    position:absolute;
+    inset:6px;
+    background:
+      linear-gradient(45deg, transparent 46%, var(--chalk) 48%, var(--chalk) 52%, transparent 54%),
+      linear-gradient(-45deg, transparent 46%, var(--chalk) 48%, var(--chalk) 52%, transparent 54%);
+    opacity:0;
+    animation:strike 0.35s ease forwards;
+    animation-delay:0.1s;
+  }
+
+  @keyframes strike{
+    from{opacity:0;}
+    to{opacity:0.85;}
+  }
+
+  .result-banner{
+    text-align:center;
+    font-family:'Kalam', cursive;
+    font-size:1.4rem;
+    min-height:34px;
+    margin-bottom:22px;
+    font-weight:700;
+    letter-spacing:0.5px;
+  }
+
+  .result-banner.win{color:var(--yellow);}
+  .result-banner.lose{color:var(--pink);}
+  .result-banner.draw{color:var(--blue);}
+
+  .picks{
+    display:flex;
+    justify-content:center;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+
+  .pick-btn{
+    background:transparent;
+    border:2px dashed rgba(243,240,230,0.35);
+    border-radius:14px;
+    width:104px;
+    height:118px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    cursor:pointer;
+    color:var(--chalk);
+    font-family:'Kalam', cursive;
+    font-size:0.9rem;
+    transition:transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .pick-btn svg{
+    width:46px;
+    height:46px;
+    transition:transform 0.15s ease;
+  }
+
+  .pick-btn:hover, .pick-btn:focus-visible{
+    border-color:var(--yellow);
+    background:rgba(232,197,71,0.08);
+    transform:translateY(-3px);
+    outline:none;
+  }
+
+  .pick-btn:active svg{
+    transform:scale(0.9);
+  }
+
+  .pick-btn:disabled{
+    opacity:0.4;
+    cursor:default;
+    transform:none;
+  }
+
+  .footer-row{
+    display:flex;
+    justify-content:center;
+    margin-top:22px;
+  }
+
+  .reset-btn{
+    background:none;
+    border:none;
+    color:var(--chalk-dim);
+    font-family:'Kalam', cursive;
+    font-size:0.95rem;
+    text-decoration:underline;
+    cursor:pointer;
+    padding:6px 10px;
+  }
+
+  .reset-btn:hover{color:var(--chalk);}
+
+  @media (prefers-reduced-motion: reduce){
+    .fighter svg, .pick-btn, .pick-btn svg, .fighter.loser::after{
+      transition:none;
+      animation:none;
+    }
+  }
+
+  @media (max-width:420px){
+    .pick-btn{width:88px; height:104px;}
+    .fighter{width:78px; height:78px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="frame">
+  <div class="board">
+    <h1>Snake, Water, Gun</h1>
+    <p class="subtitle">snake drinks water &middot; water jams gun &middot; gun shoots snake</p>
+
+    <div class="scoreboard">
+      <div class="score-item">
+        <span class="score-label">You</span>
+        <span class="score-value you" id="scoreYou">0</span>
+      </div>
+      <div class="divider"></div>
+      <div class="score-item">
+        <span class="score-label">Draws</span>
+        <span class="score-value draw" id="scoreDraw">0</span>
+      </div>
+      <div class="divider"></div>
+      <div class="score-item">
+        <span class="score-label">Computer</span>
+        <span class="score-value cpu" id="scoreCpu">0</span>
+      </div>
+    </div>
+
+    <div class="arena">
+      <div class="fighter empty" id="fighterYou">
+        <svg viewBox="0 0 100 100" id="youIcon"></svg>
+      </div>
+      <span class="vs">vs</span>
+      <div class="fighter empty" id="fighterCpu">
+        <svg viewBox="0 0 100 100" id="cpuIcon"></svg>
+      </div>
+    </div>
+
+    <div class="result-banner" id="resultBanner">Chalk one up. Make your move.</div>
+
+    <div class="picks">
+      <button class="pick-btn" data-choice="s" aria-label="Snake">
+        <svg viewBox="0 0 100 100">
+          <path d="M20 70 Q10 50 25 40 Q45 25 40 45 Q35 65 55 55 Q75 45 70 65 Q65 82 45 78" fill="none" stroke="#f3f0e6" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="1 3"/>
+          <circle cx="18" cy="68" r="2.4" fill="#f3f0e6"/>
+        </svg>
+        <span>Snake</span>
+      </button>
+      <button class="pick-btn" data-choice="w" aria-label="Water">
+        <svg viewBox="0 0 100 100">
+          <path d="M50 15 C40 35 25 48 25 65 C25 80 37 88 50 88 C63 88 75 80 75 65 C75 48 60 35 50 15 Z" fill="none" stroke="#f3f0e6" stroke-width="4.5" stroke-linejoin="round" stroke-dasharray="1 3"/>
+        </svg>
+        <span>Water</span>
+      </button>
+      <button class="pick-btn" data-choice="g" aria-label="Gun">
+        <svg viewBox="0 0 100 100">
+          <path d="M20 60 L60 60 L60 48 L75 48 L75 42 L82 42 L82 55 L68 55 L68 66 L30 66 L30 78 L20 78 Z" fill="none" stroke="#f3f0e6" stroke-width="4.5" stroke-linejoin="round" stroke-dasharray="1 3"/>
+        </svg>
+        <span>Gun</span>
+      </button>
+    </div>
+
+    <div class="footer-row">
+      <button class="reset-btn" id="resetBtn">reset scoreboard</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ICONS = {
+    s: `<path d="M20 70 Q10 50 25 40 Q45 25 40 45 Q35 65 55 55 Q75 45 70 65 Q65 82 45 78" fill="none" stroke="#f3f0e6" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="1 3"/><circle cx="18" cy="68" r="2.4" fill="#f3f0e6"/>`,
+    w: `<path d="M50 15 C40 35 25 48 25 65 C25 80 37 88 50 88 C63 88 75 80 75 65 C75 48 60 35 50 15 Z" fill="none" stroke="#f3f0e6" stroke-width="4.5" stroke-linejoin="round" stroke-dasharray="1 3"/>`,
+    g: `<path d="M20 60 L60 60 L60 48 L75 48 L75 42 L82 42 L82 55 L68 55 L68 66 L30 66 L30 78 L20 78 Z" fill="none" stroke="#f3f0e6" stroke-width="4.5" stroke-linejoin="round" stroke-dasharray="1 3"/>`
+  };
+
+  const NAMES = { s: "Snake", w: "Water", g: "Gun" };
+  const VAL = { s: -1, w: 0, g: 1 };
+
+  let score = { you: 0, cpu: 0, draw: 0 };
+  let locked = false;
+
+  const youIcon = document.getElementById('youIcon');
+  const cpuIcon = document.getElementById('cpuIcon');
+  const fighterYou = document.getElementById('fighterYou');
+  const fighterCpu = document.getElementById('fighterCpu');
+  const banner = document.getElementById('resultBanner');
+  const buttons = document.querySelectorAll('.pick-btn');
+
+  function play(choice){
+    if (locked) return;
+    locked = true;
+    buttons.forEach(b => b.disabled = true);
+
+    const cpuChoice = ['s','w','g'][Math.floor(Math.random()*3)];
+
+    youIcon.innerHTML = ICONS[choice];
+    cpuIcon.innerHTML = ICONS[cpuChoice];
+    fighterYou.classList.remove('empty','winner','loser');
+    fighterCpu.classList.remove('empty','winner','loser');
+
+    const you = VAL[choice];
+    const cpu = VAL[cpuChoice];
+
+    let outcome;
+    if (you === cpu){
+      outcome = 'draw';
+    } else if (
+      (cpu === -1 && you === 0) ||
+      (cpu === 0 && you === 1) ||
+      (cpu === 1 && you === -1)
+    ){
+      outcome = 'lose';
+    } else {
+      outcome = 'win';
+    }
+
+    if (outcome === 'win'){
+      score.you++;
+      fighterYou.classList.add('winner');
+      fighterCpu.classList.add('loser');
+      banner.textContent = `${NAMES[choice]} beats ${NAMES[cpuChoice]}. You win.`;
+    } else if (outcome === 'lose'){
+      score.cpu++;
+      fighterCpu.classList.add('winner');
+      fighterYou.classList.add('loser');
+      banner.textContent = `${NAMES[cpuChoice]} beats ${NAMES[choice]}. Computer wins.`;
+    } else {
+      score.draw++;
+      banner.textContent = `Both drew ${NAMES[choice]}. Draw.`;
+    }
+
+    banner.className = 'result-banner ' + outcome;
+    updateScoreboard();
+
+    setTimeout(() => {
+      buttons.forEach(b => b.disabled = false);
+      locked = false;
+    }, 550);
+  }
+
+  function updateScoreboard(){
+    document.getElementById('scoreYou').textContent = score.you;
+    document.getElementById('scoreCpu').textContent = score.cpu;
+    document.getElementById('scoreDraw').textContent = score.draw;
+  }
+
+  buttons.forEach(btn => {
+    btn.addEventListener('click', () => play(btn.dataset.choice));
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    score = { you: 0, cpu: 0, draw: 0 };
+    updateScoreboard();
+    banner.className = 'result-banner';
+    banner.textContent = 'Chalk one up. Make your move.';
+    youIcon.innerHTML = '';
+    cpuIcon.innerHTML = '';
+    fighterYou.className = 'fighter empty';
+    fighterCpu.className = 'fighter empty';
+  });
+</script>
+
+</body>
+</html>
